@@ -1,4 +1,5 @@
-# HTTP Proxy Extension для Chrome
+# HTTP Прокси bomjika для Chrome
+![image](https://github.com/user-attachments/assets/254cd350-62bd-4f46-8f62-a06f3533d627)
 
 Расширение для проксирования трафика через HTTP-прокси сервер с возможностью использования списка доменов позволяющих обойти блокировки в России.
 
