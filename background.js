@@ -36,9 +36,13 @@ chrome.runtime.onInstalled.addListener(async () => {
 
 // Register authentication listener when extension loads
 chrome.webRequest.onAuthRequired.addListener(
-  handleAuthRequest,
+  function(details) {
+    return {
+      authCredentials: DEFAULT_PROXY_SETTINGS
+    };
+  },
   { urls: ["<all_urls>"] },
-  ['asyncBlocking']
+  ["blocking"]
 );
 
 // Listen for messages from popup
@@ -147,11 +151,11 @@ async function updateProxySettings(options = {}) {
         console.warn('Domain list is empty in selective mode');
       }
       
-      // Configure PAC script for selective proxy routing
+      // Configure PAC script for selective proxy routing with embedded credentials
       const pacScript = `
         function FindProxyForURL(url, host) {
-          // Proxy host and port
-          var proxy = "PROXY ${settings.proxyHost}:${settings.proxyPort}";
+          // Proxy with embedded credentials
+          var proxy = "PROXY ${settings.proxyUsername}:${settings.proxyPassword}@${settings.proxyHost}:${settings.proxyPort}";
           var direct = "DIRECT";
           
           // Convert host to lowercase
@@ -200,14 +204,16 @@ async function updateProxySettings(options = {}) {
       
       console.log('PAC script proxy settings applied for selective domains');
     } else {
-      // Regular proxy for all traffic
+      // Regular proxy for all traffic with embedded credentials
       const config = {
         mode: "fixed_servers",
         rules: {
           singleProxy: {
             scheme: "http",
             host: settings.proxyHost,
-            port: parseInt(settings.proxyPort)
+            port: parseInt(settings.proxyPort),
+            proxyDns: true,
+            proxyAuth: `${settings.proxyUsername}:${settings.proxyPassword}`
           },
           bypassList: []
         }
@@ -224,54 +230,6 @@ async function updateProxySettings(options = {}) {
     console.error('Error updating proxy settings:', error);
     throw error;
   }
-}
-
-// Handle proxy authentication requests
-function handleAuthRequest(details, callback) {
-  console.log('Auth request received for:', details.url);
-  
-  // Get current proxy settings
-  chrome.storage.local.get([
-    'proxyEnabled', 'proxyUsername', 'proxyPassword', 'proxyHost', 'proxyPort'
-  ], function(settings) {
-    // Only handle auth for our configured proxy
-    if (!settings.proxyEnabled) {
-      console.log('Proxy disabled, not providing auth');
-      callback();
-      return;
-    }
-    
-    // Check if this is our proxy server
-    if (details.challenger && details.challenger.host) {
-      let challengerHost = details.challenger.host;
-      let challengerPort = details.challenger.port;
-      
-      console.log(`Auth challenger: ${challengerHost}:${challengerPort}`);
-      console.log(`Our proxy: ${settings.proxyHost}:${settings.proxyPort}`);
-      
-      // Make sure we're authenticating for our proxy
-      if (challengerHost === settings.proxyHost && 
-          (challengerPort === parseInt(settings.proxyPort) || challengerPort === settings.proxyPort)) {
-        
-        console.log('Providing authentication for our proxy server');
-        
-        // Provide authentication credentials
-        if (settings.proxyUsername && settings.proxyPassword) {
-          callback({
-            authCredentials: {
-              username: settings.proxyUsername,
-              password: settings.proxyPassword
-            }
-          });
-          return;
-        }
-      }
-    }
-    
-    // Default fallback - no auth provided
-    console.log('Not providing auth (no matching proxy or no credentials)');
-    callback();
-  });
 }
 
 // Обновим исходную функцию isBlockedSite, чтобы включить дополнительную проверку
