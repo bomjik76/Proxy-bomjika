@@ -1,9 +1,9 @@
 // Default proxy settings
 const DEFAULT_PROXY_SETTINGS = {
-  host: 'XX.XX.XX.XX',
-  port: 'XXXX',
-  username: 'XXXX',
-  password: 'XXXX'
+  host: '',
+  port: '',
+  username: '',
+  password: ''
 };
 
 // Import domain list functions
@@ -307,73 +307,7 @@ chrome.webRequest.onErrorOccurred.addListener(
     
     console.log(`Error detected on ${details.url}: ${details.error}`);
     
-    try {
-      // Extract domain from URL before any other checks
-      const url = new URL(details.url);
-      const domain = url.hostname;
-      
-      // Check if proxy is enabled and in selective mode
-      const settings = await chrome.storage.local.get([
-        'proxyEnabled', 'onlyRefilterDomains'
-      ]);
-      
-      console.log(`Current proxy settings for error check: Enabled=${settings.proxyEnabled}, SelectiveMode=${settings.onlyRefilterDomains}`);
-      
-      if (!settings.proxyEnabled || !settings.onlyRefilterDomains) {
-        console.log(`Skipping notification for ${domain} - proxy is off or not in selective mode`);
-        return; // Don't show notifications if proxy is off or not in selective mode
-      }
-      
-      // Don't suggest adding local addresses, extensions, or browser internal pages
-      if (domain === 'localhost' || 
-          domain.includes('127.0.0.1') || 
-          domain.includes('::1') ||
-          domain.endsWith('.local') ||
-          domain.startsWith('chrome-extension://') ||
-          domain.startsWith('chrome://') ||
-          domain.startsWith('edge://') ||
-          domain.startsWith('about:') ||
-          domain.startsWith('file://')) {
-        console.log(`Skipping internal domain: ${domain}`);
-        return;
-      }
-      
-      // Get current domain list
-      const { domains } = await getStoredDomainList();
-      
-      // Check if domain is already in the list
-      if (isDomainInList(domain, domains)) {
-        console.log(`Domain ${domain} already in list, skipping notification`);
-        return; // Domain already in the list, no need to suggest
-      }
-      
-      // Create a unique ID for this blocked site to avoid duplicate notifications
-      const notificationId = `access_error_${domain}_${Date.now()}`;
-      
-      console.log(`Preparing to show notification for ${domain}`);
-      
-      // Show notification
-      chrome.notifications.create(notificationId, {
-        type: 'basic',
-        iconUrl: 'images/128.png',
-        title: 'Сайт недоступен',
-        message: `Сайт ${domain} недоступен. Добавить его в список для обхода блокировки?`,
-        buttons: [
-          { title: 'Добавить' },
-          { title: 'Отмена' }
-        ],
-        priority: 2,
-        requireInteraction: true
-      }, (createdId) => {
-        if (chrome.runtime.lastError) {
-          console.error('Error creating notification:', chrome.runtime.lastError);
-        } else {
-          console.log(`Notification shown for blocked site: ${domain} with ID: ${createdId}`);
-        }
-      });
-    } catch (error) {
-      console.error('Error processing access error:', error);
-    }
+    // Removed notification functionality - no longer showing notifications for blocked sites
   },
   { urls: ["<all_urls>"] }
 );
@@ -390,70 +324,8 @@ chrome.webRequest.onCompleted.addListener(
     const suspiciousStatusCodes = [451]; // 451 = Unavailable For Legal Reasons
     
     if (suspiciousStatusCodes.includes(details.statusCode)) {
-      try {
-        // Check if proxy is enabled and in selective mode
-        const settings = await chrome.storage.local.get([
-          'proxyEnabled', 'onlyRefilterDomains'
-        ]);
-        
-        if (!settings.proxyEnabled || !settings.onlyRefilterDomains) {
-          return; // Don't show notifications if proxy is off or not in selective mode
-        }
-        
-        // Extract domain from URL
-        const url = new URL(details.url);
-        const domain = url.hostname;
-        
-        // Skip special domains
-        if (domain === 'localhost' || 
-            domain.includes('127.0.0.1') || 
-            domain.endsWith('.local') ||
-            domain.startsWith('chrome-extension://')) {
-          return;
-        }
-        
-        // Get current domain list
-        const { domains } = await getStoredDomainList();
-        
-        // Check if domain is already in the list
-        if (isDomainInList(domain, domains)) {
-          return; // Domain already in the list, no need to suggest
-        }
-        
-        // Create a unique ID for this blocked site
-        const notificationId = `block_detected_${domain}_${Date.now()}`;
-        
-        // Check if we recently showed a notification for this domain
-        const lastNotificationTime = await chrome.storage.local.get('lastNotification_' + domain);
-        const currentTime = Date.now();
-        
-        if (!lastNotificationTime['lastNotification_' + domain] || 
-            (currentTime - lastNotificationTime['lastNotification_' + domain]) > 5 * 60 * 1000) {
-          
-          // Store the last notification time
-          await chrome.storage.local.set({
-            ['lastNotification_' + domain]: currentTime
-          });
-          
-          // Show notification
-          chrome.notifications.create(notificationId, {
-            type: 'basic',
-            iconUrl: 'images/128.png',
-            title: 'Возможная блокировка',
-            message: `Сайт ${domain} может быть заблокирован. Добавить его в список для обхода блокировки?`,
-            buttons: [
-              { title: 'Добавить' },
-              { title: 'Отмена' }
-            ],
-            priority: 2,
-            requireInteraction: true
-          });
-          
-          console.log(`Notification shown for suspicious status code on: ${domain}`);
-        }
-      } catch (error) {
-        console.error('Error processing suspicious status:', error);
-      }
+      // Removed notification functionality - no longer showing notifications for suspicious status codes
+      console.log(`Suspicious status code detected on ${details.url}: ${details.statusCode}`);
     }
   },
   { urls: ["<all_urls>"] }
@@ -479,47 +351,7 @@ chrome.webRequest.onCompleted.addListener(
       
       if (isKnownBlockedSite) {
         console.log(`Known blocked site detected: ${domain}`);
-        
-        // Check if proxy is enabled and in selective mode
-        const settings = await chrome.storage.local.get([
-          'proxyEnabled', 'onlyRefilterDomains'
-        ]);
-        
-        if (!settings.proxyEnabled || !settings.onlyRefilterDomains) {
-          console.log(`Skipping notification for ${domain} - proxy is off or not in selective mode`);
-          return;
-        }
-        
-        // Get current domain list
-        const { domains } = await getStoredDomainList();
-        
-        // Check if domain is already in the list
-        if (isDomainInList(domain, domains)) {
-          console.log(`Domain ${domain} already in list, skipping notification`);
-          return;
-        }
-        
-        // Create a notification for this known blocked site
-        const notificationId = `known_blocked_${domain}_${Date.now()}`;
-        
-        chrome.notifications.create(notificationId, {
-          type: 'basic',
-          iconUrl: 'images/128.png',
-          title: 'Заблокированный сайт обнаружен',
-          message: `Сайт ${domain} заблокирован. Добавить его в список для обхода блокировки?`,
-          buttons: [
-            { title: 'Добавить' },
-            { title: 'Отмена' }
-          ],
-          priority: 2,
-          requireInteraction: true
-        }, (createdId) => {
-          if (chrome.runtime.lastError) {
-            console.error('Error creating notification:', chrome.runtime.lastError);
-          } else {
-            console.log(`Notification shown for known blocked site: ${domain} with ID: ${createdId}`);
-          }
-        });
+        // Removed notification functionality - no longer showing notifications for known blocked sites
       }
     } catch (error) {
       console.error('Error processing completed request:', error);
@@ -528,48 +360,7 @@ chrome.webRequest.onCompleted.addListener(
   { urls: ["<all_urls>"] }
 );
 
-// Handle notification button clicks
-chrome.notifications.onButtonClicked.addListener(async (notificationId, buttonIndex) => {
-  // Extract domain from notification ID
-  let domain = null;
-  
-  if (notificationId.startsWith('access_error_')) {
-    domain = notificationId.split('_')[2]; // Format: access_error_domain_timestamp
-  } else if (notificationId.startsWith('block_detected_')) {
-    domain = notificationId.split('_')[2]; // Format: block_detected_domain_timestamp
-  } else if (notificationId.startsWith('known_blocked_')) {
-    domain = notificationId.split('_')[2]; // Format: known_blocked_domain_timestamp
-  }
-  
-  if (domain && buttonIndex === 0) { // "Add" button clicked
-    try {
-      console.log(`Adding domain from notification: ${domain}`);
-      const result = await addDomainToList(domain);
-      
-      if (result.success) {
-        chrome.notifications.create(`domain_added_${domain}_${Date.now()}`, {
-          type: 'basic',
-          iconUrl: 'images/128.png',
-          title: 'Домен добавлен',
-          message: `${domain} успешно добавлен в список проксируемых сайтов.`,
-          priority: 1
-        });
-        
-        // Update proxy settings to apply changes
-        await updateProxySettings();
-      }
-    } catch (error) {
-      console.error('Error adding domain from notification:', error);
-      chrome.notifications.create(`error_${Date.now()}`, {
-        type: 'basic',
-        iconUrl: 'images/128.png',
-        title: 'Ошибка',
-        message: `Не удалось добавить домен: ${error.message}`,
-        priority: 1
-      });
-    }
-  }
-  
-  // Close the notification
-  chrome.notifications.clear(notificationId);
-}); 
+// Handle notification button clicks - removed notification functionality
+// chrome.notifications.onButtonClicked.addListener(async (notificationId, buttonIndex) => {
+//   // Removed notification button handling - no longer showing notifications
+// }); 
