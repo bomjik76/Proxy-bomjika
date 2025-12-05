@@ -40,11 +40,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   const allToggleCards = document.querySelectorAll('.card');
   allToggleCards.forEach(card => {
     card.addEventListener('mouseenter', () => {
-      card.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
+      card.style.backgroundColor = 'rgba(255, 255, 255, 0.95)';
     });
     
     card.addEventListener('mouseleave', () => {
-      card.style.backgroundColor = 'rgba(255, 255, 255, 0.15)';
+      card.style.backgroundColor = 'rgba(255, 255, 255, 0.85)';
     });
   });
 
@@ -53,7 +53,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Добавляем анимацию к кнопке при переключении
     const toggleParent = proxyEnabledToggle.closest('.toggle');
     toggleParent.style.backgroundColor = proxyEnabledToggle.checked ? 
-      'rgba(33, 150, 243, 0.2)' : 'transparent';
+      'rgba(74, 144, 226, 0.15)' : 'transparent';
     
     // Сохраняем настройки
     await chrome.storage.local.set({ proxyEnabled: proxyEnabledToggle.checked });
@@ -75,7 +75,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Визуальный отклик
     const toggleParent = onlyRefilterDomainsToggle.closest('.toggle');
     toggleParent.style.backgroundColor = onlyRefilterDomainsToggle.checked ? 
-      'rgba(33, 150, 243, 0.2)' : 'transparent';
+      'rgba(74, 144, 226, 0.15)' : 'transparent';
     
     // Сохраняем настройки
     await chrome.storage.local.set({ onlyRefilterDomains: onlyRefilterDomainsToggle.checked });
@@ -120,7 +120,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       
       // Показываем индикатор успеха
       refreshDomainListBtn.innerHTML = '<span class="material-icons-round">check_circle</span><span>Готово!</span>';
-      refreshDomainListBtn.style.backgroundColor = 'rgba(40, 167, 69, 0.8)';
+      refreshDomainListBtn.style.background = 'linear-gradient(135deg, #27AE60 0%, #2ECC71 100%)';
       
       // Добавляем анимацию к счетчику доменов
       domainCountElement.classList.add('pulse');
@@ -129,7 +129,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (error) {
       console.error('Error refreshing domain list:', error);
       refreshDomainListBtn.innerHTML = '<span class="material-icons-round">error</span><span>Ошибка</span>';
-      refreshDomainListBtn.style.backgroundColor = 'rgba(220, 53, 69, 0.8)';
+      refreshDomainListBtn.style.background = 'linear-gradient(135deg, #E74C3C 0%, #F56565 100%)';
     } finally {
       setTimeout(() => {
         refreshDomainListBtn.disabled = false;
@@ -340,4 +340,44 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   `;
   document.head.appendChild(style);
+  
+  // Создание анимации падающих снежинок
+  function createSnowflakes() {
+    const snowContainer = document.getElementById('snowContainer');
+    if (!snowContainer) return;
+    
+    const snowflakeSymbols = ['❄', '❅', '❆', '✻', '✼', '✽', '✾', '✿', '❀'];
+    const numSnowflakes = 30;
+    
+    for (let i = 0; i < numSnowflakes; i++) {
+      const snowflake = document.createElement('div');
+      snowflake.className = 'snowflake';
+      snowflake.textContent = snowflakeSymbols[Math.floor(Math.random() * snowflakeSymbols.length)];
+      
+      // Случайная позиция по горизонтали
+      const startX = Math.random() * 100;
+      snowflake.style.left = startX + '%';
+      
+      // Случайная задержка анимации
+      const delay = Math.random() * 5;
+      snowflake.style.animationDelay = delay + 's';
+      
+      // Случайная скорость падения
+      const duration = 3 + Math.random() * 4; // от 3 до 7 секунд
+      snowflake.style.animationDuration = duration + 's';
+      
+      // Случайный дрейф в сторону
+      const drift = (Math.random() - 0.5) * 100;
+      snowflake.style.setProperty('--drift', drift + 'px');
+      
+      // Случайный размер
+      const size = 0.8 + Math.random() * 0.7; // от 0.8em до 1.5em
+      snowflake.style.fontSize = size + 'em';
+      
+      snowContainer.appendChild(snowflake);
+    }
+  }
+  
+  // Запускаем создание снежинок после загрузки DOM
+  createSnowflakes();
 }); 
