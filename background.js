@@ -143,47 +143,119 @@ async function updateProxySettings(options = {}) {
       // Get the domain list if in selective mode
       const { domains } = await getStoredDomainList();
       
-      if (!domains || domains.length === 0) {
-        console.warn('Domain list is empty in selective mode');
+      // Ensure domains is an array
+      const domainList = Array.isArray(domains) ? domains : [];
+      
+      if (domainList.length === 0) {
+        console.warn('Domain list is empty in selective mode - all traffic will go DIRECT');
+      } else {
+        console.log(`Selective mode: ${domainList.length} domains in proxy list`);
       }
       
       // Configure PAC script for selective proxy routing
       const pacScript = `
         function FindProxyForURL(url, host) {
-          // Proxy host and port
-          var proxy = "PROXY ${settings.proxyHost}:${settings.proxyPort}";
-          var direct = "DIRECT";
+          var PROXY = "PROXY ${settings.proxyHost}:${settings.proxyPort}";
+          var DIRECT = "DIRECT";
           
-          // Convert host to lowercase
+          if (!host) {
+            return DIRECT;
+          }
+          
+          function isIPAddress(str) {
+            if (!str) return false;
+            var hasOnlyDigitsAndDots = true;
+            var dotCount = 0;
+            for (var i = 0; i < str.length; i++) {
+              var c = str.charAt(i);
+              if (c === '.') {
+                dotCount++;
+              } else if (c < '0' || c > '9') {
+                hasOnlyDigitsAndDots = false;
+                break;
+              }
+            }
+            if (hasOnlyDigitsAndDots && dotCount === 3) {
+              return true;
+            }
+            if (str.indexOf(':') !== -1) {
+              return true;
+            }
+            return false;
+          }
+          
+          if (
+              shExpMatch(url, "chrome://*") ||
+              shExpMatch(url, "chrome-extension://*") ||
+              shExpMatch(url, "edge://*") ||
+              shExpMatch(url, "about:*") ||
+              shExpMatch(url, "moz-extension://*") ||
+              shExpMatch(url, "vivaldi://*") ||
+              shExpMatch(url, "opera://*") ||
+              shExpMatch(url, "file://*") ||
+              shExpMatch(host, "clients*.google.com") ||
+              shExpMatch(host, "*.googleapis.com") ||
+              shExpMatch(host, "*.gstatic.com") ||
+              shExpMatch(host, "*.google.com") ||
+              shExpMatch(host, "connectivitycheck.gstatic.com") ||
+              shExpMatch(host, "www.gstatic.com") ||
+              shExpMatch(host, "captive.apple.com") ||
+              host === "localhost" ||
+              shExpMatch(host, "::1")
+          ) {
+            return DIRECT;
+          }
+          
+          if (isIPAddress(host)) {
+            try {
+              if (isInNet(host, "127.0.0.0", "255.0.0.0") ||
+                  isInNet(host, "10.0.0.0", "255.0.0.0") ||
+                  isInNet(host, "172.16.0.0", "255.240.0.0") ||
+                  isInNet(host, "192.168.0.0", "255.255.0.0")) {
+                return DIRECT;
+              }
+            } catch (e) {
+            }
+          }
+          
+          var domainList = ${JSON.stringify(domainList)};
+          
+          if (!domainList || !Array.isArray(domainList) || domainList.length === 0) {
+            return DIRECT;
+          }
+          
+          if (!host || host.length === 0) {
+            return DIRECT;
+          }
+          
           host = host.toLowerCase();
           
-          // Domain list for proxying
-          var domainList = ${JSON.stringify(domains)};
-          
-          // Check for TLD matches (entries starting with dot)
-          for (var i = 0; i < domainList.length; i++) {
-            var domain = domainList[i];
-            if (domain.charAt(0) === '.' && host.endsWith(domain)) {
-              return proxy;
-            }
+          if (isIPAddress(host)) {
+            return DIRECT;
           }
           
-          // Direct match
           if (domainList.indexOf(host) !== -1) {
-            return proxy;
+            return PROXY;
           }
           
-          // Check for subdomain matches
           var parts = host.split('.');
-          for (var i = 1; i < parts.length; i++) {
-            var parentDomain = parts.slice(i).join('.');
-            if (domainList.indexOf(parentDomain) !== -1) {
-              return proxy;
+          if (parts.length > 1) {
+            for (var i = 1; i < parts.length; i++) {
+              var parent = parts.slice(i).join('.');
+              if (parent && domainList.indexOf(parent) !== -1) {
+                return PROXY;
+              }
             }
           }
           
-          // Default to direct connection
-          return direct;
+          for (var j = 0; j < domainList.length; j++) {
+            var d = domainList[j];
+            if (d && typeof d === 'string' && d.length > 0 && d.charAt(0) === "." && host.endsWith(d)) {
+              return PROXY;
+            }
+          }
+          
+          return DIRECT;
         }
       `;
       
