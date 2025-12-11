@@ -43631,3 +43631,11 @@ zzz.skx-telga-redir1.site
 zzzooo.space
 zzztube.com
 zzztube.tv
+twitch.tv
+www.twitch.tv
+api.twitch.tv
+gql.twitch.tv
+static.twitchcdn.net
+ttvnw.net
+jtvnw.net
+twitchcdn.net

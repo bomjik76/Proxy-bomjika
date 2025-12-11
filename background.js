@@ -89,13 +89,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
       
       removeDomainFromList(message.domain)
-        .then(result => {
+        .then(async result => {
           console.log('Remove domain result:', JSON.stringify(result));
-          sendResponse({ success: true, ...result });
+          
           // If domain was removed successfully, update proxy settings
           if (result.success && !result.notFound) {
-            return updateProxySettings();
+            console.log('Domain removed successfully, updating proxy settings...');
+            try {
+              await updateProxySettings();
+              console.log('Proxy settings updated after domain removal');
+            } catch (proxyError) {
+              console.error('Error updating proxy settings:', proxyError);
+            }
           }
+          
+          sendResponse({ success: true, ...result });
         })
         .catch(error => {
           console.error('Error removing domain:', error);
@@ -150,6 +158,7 @@ async function updateProxySettings(options = {}) {
         console.warn('Domain list is empty in selective mode - all traffic will go DIRECT');
       } else {
         console.log(`Selective mode: ${domainList.length} domains in proxy list`);
+        console.log('Domain list:', domainList.slice(0, 20).join(', ') + (domainList.length > 20 ? '...' : ''));
       }
       
       // Configure PAC script for selective proxy routing
