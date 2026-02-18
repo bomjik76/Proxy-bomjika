@@ -12,11 +12,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   const addCurrentSiteBtn = document.getElementById('addCurrentSiteBtn');
   const removeCurrentSiteBtn = document.getElementById('removeCurrentSiteBtn');
   const addSiteStatus = document.getElementById('addSiteStatus');
+  const themeToggle = document.getElementById('themeToggle');
 
   // Загрузка настроек
   const settings = await chrome.storage.local.get([
     'proxyEnabled',
     'onlyRefilterDomains',
+    'popupTheme',
     'proxyHost',
     'proxyPort',
     'proxyUsername',
@@ -26,6 +28,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Обновление UI на основе настроек
   proxyEnabledToggle.checked = settings.proxyEnabled || false;
   onlyRefilterDomainsToggle.checked = settings.onlyRefilterDomains || false;
+  const initialTheme = settings.popupTheme === 'dark' ? 'dark' : 'light';
+  applyTheme(initialTheme);
+  themeToggle.checked = initialTheme === 'dark';
   updateStatus(settings.proxyEnabled);
 
   // Показать/скрыть секцию доменов в зависимости от настроек
@@ -40,12 +45,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   const allToggleCards = document.querySelectorAll('.card');
   allToggleCards.forEach(card => {
     card.addEventListener('mouseenter', () => {
-      card.style.backgroundColor = 'rgba(255, 255, 255, 0.95)';
+      card.style.backgroundColor = 'var(--card-hover-bg)';
     });
     
     card.addEventListener('mouseleave', () => {
-      card.style.backgroundColor = 'rgba(255, 255, 255, 0.85)';
+      card.style.backgroundColor = 'var(--card-bg)';
     });
+  });
+
+  themeToggle.addEventListener('change', async () => {
+    const nextTheme = themeToggle.checked ? 'dark' : 'light';
+    applyTheme(nextTheme);
+    await chrome.storage.local.set({ popupTheme: nextTheme });
   });
 
   // Обработчик изменения статуса прокси
@@ -307,6 +318,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       statusElement.classList.remove('active');
       statusElement.classList.add('inactive');
     }
+  }
+
+  function applyTheme(theme) {
+    document.body.classList.toggle('theme-dark', theme === 'dark');
   }
 
   // Загружает информацию о списке доменов
