@@ -282,6 +282,45 @@ async function updateProxySettings(options = {}) {
       console.log('PAC script proxy settings applied for selective domains');
     } else {
       // Regular proxy for all traffic
+      // Add bypass list for critical services (Google search, AI, Lens, etc.)
+      const bypassList = [
+        // Основные домены Google
+        "*.google.com",
+        "google.com",
+        "www.google.com",
+        "lens.google.com",
+        "clients*.google.com",
+        "ogs.google.com",
+        "www.googleapis.com",
+        "*.gstatic.com",
+        "gstatic.com",
+        "www.gstatic.com",
+        "*.googleapis.com",
+        "googleapis.com",
+        // Медиа/контент Google (картинки, аватары, превью и т.п.)
+        "*.googleusercontent.com",
+        "googleusercontent.com",
+        "*.ggpht.com",
+        "ggpht.com",
+        "lh3.googleusercontent.com",
+        "lh4.googleusercontent.com",
+        "lh5.googleusercontent.com",
+        "lh6.googleusercontent.com",
+        // Реклама/телеметрия Google, которые дергает выдача с ИИ
+        "*.googleadservices.com",
+        "googleadservices.com",
+        "*.googlesyndication.com",
+        "googlesyndication.com",
+        "*.doubleclick.net",
+        "doubleclick.net",
+        "connectivitycheck.gstatic.com",
+        "captive.apple.com",
+        // Локальные адреса
+        "localhost",
+        "127.0.0.1",
+        "::1"
+      ];
+
       const config = {
         mode: "fixed_servers",
         rules: {
@@ -290,7 +329,7 @@ async function updateProxySettings(options = {}) {
             host: settings.proxyHost,
             port: parseInt(settings.proxyPort)
           },
-          bypassList: []
+          bypassList
         }
       };
       
