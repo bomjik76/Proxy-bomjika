@@ -4,6 +4,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Элементы управления
   const proxyEnabledToggle = document.getElementById('proxyEnabled');
   const onlyRefilterDomainsToggle = document.getElementById('onlyRefilterDomains');
+  const proxyProfileSelect = document.getElementById('proxyProfileSelect');
   const domainListSection = document.getElementById('domainListSection');
   const refreshDomainListBtn = document.getElementById('refreshDomainList');
   const domainCountElement = document.getElementById('domainCount');
@@ -12,26 +13,22 @@ document.addEventListener('DOMContentLoaded', async () => {
   const addCurrentSiteBtn = document.getElementById('addCurrentSiteBtn');
   const removeCurrentSiteBtn = document.getElementById('removeCurrentSiteBtn');
   const addSiteStatus = document.getElementById('addSiteStatus');
-  const themeToggle = document.getElementById('themeToggle');
 
   // Загрузка настроек
   const settings = await chrome.storage.local.get([
     'proxyEnabled',
     'onlyRefilterDomains',
-    'popupTheme',
-    'proxyHost',
-    'proxyPort',
-    'proxyUsername',
-    'proxyPassword'
+    'activeProxyId'
   ]);
 
   // Обновление UI на основе настроек
   proxyEnabledToggle.checked = settings.proxyEnabled || false;
   onlyRefilterDomainsToggle.checked = settings.onlyRefilterDomains || false;
-  const initialTheme = settings.popupTheme === 'dark' ? 'dark' : 'light';
-  applyTheme(initialTheme);
-  themeToggle.checked = initialTheme === 'dark';
   updateStatus(settings.proxyEnabled);
+  
+  if (proxyProfileSelect) {
+    proxyProfileSelect.value = settings.activeProxyId || 'proxy1';
+  }
 
   // Показать/скрыть секцию доменов в зависимости от настроек
   if (settings.onlyRefilterDomains) {
@@ -45,18 +42,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   const allToggleCards = document.querySelectorAll('.card');
   allToggleCards.forEach(card => {
     card.addEventListener('mouseenter', () => {
-      card.style.backgroundColor = 'var(--card-hover-bg)';
+      card.style.backgroundColor = 'rgba(255, 255, 255, 0.95)';
     });
     
     card.addEventListener('mouseleave', () => {
-      card.style.backgroundColor = 'var(--card-bg)';
+      card.style.backgroundColor = 'rgba(255, 255, 255, 0.85)';
     });
-  });
-
-  themeToggle.addEventListener('change', async () => {
-    const nextTheme = themeToggle.checked ? 'dark' : 'light';
-    applyTheme(nextTheme);
-    await chrome.storage.local.set({ popupTheme: nextTheme });
   });
 
   // Обработчик изменения статуса прокси
@@ -114,6 +105,20 @@ document.addEventListener('DOMContentLoaded', async () => {
       onlyRefilterDomains: onlyRefilterDomainsToggle.checked
     });
   });
+  
+  // Обработчик переключения профиля прокси
+  if (proxyProfileSelect) {
+    proxyProfileSelect.addEventListener('change', async () => {
+      const selectedId = proxyProfileSelect.value || 'proxy1';
+      
+      await chrome.storage.local.set({ activeProxyId: selectedId });
+      
+      chrome.runtime.sendMessage({
+        action: 'updateProxySettings',
+        activeProxyId: selectedId
+      });
+    });
+  }
 
   // Обработчик обновления списка доменов
   refreshDomainListBtn.addEventListener('click', async () => {
@@ -320,10 +325,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  function applyTheme(theme) {
-    document.body.classList.toggle('theme-dark', theme === 'dark');
-  }
-
   // Загружает информацию о списке доменов
   async function loadDomainListInfo() {
     try {
@@ -356,43 +357,4 @@ document.addEventListener('DOMContentLoaded', async () => {
   `;
   document.head.appendChild(style);
   
-  // Создание анимации падающих снежинок
-  function createSnowflakes() {
-    const snowContainer = document.getElementById('snowContainer');
-    if (!snowContainer) return;
-    
-    const snowflakeSymbols = ['❄', '❅', '❆', '✻', '✼', '✽', '✾', '✿', '❀'];
-    const numSnowflakes = 30;
-    
-    for (let i = 0; i < numSnowflakes; i++) {
-      const snowflake = document.createElement('div');
-      snowflake.className = 'snowflake';
-      snowflake.textContent = snowflakeSymbols[Math.floor(Math.random() * snowflakeSymbols.length)];
-      
-      // Случайная позиция по горизонтали
-      const startX = Math.random() * 100;
-      snowflake.style.left = startX + '%';
-      
-      // Случайная задержка анимации
-      const delay = Math.random() * 5;
-      snowflake.style.animationDelay = delay + 's';
-      
-      // Случайная скорость падения
-      const duration = 3 + Math.random() * 4; // от 3 до 7 секунд
-      snowflake.style.animationDuration = duration + 's';
-      
-      // Случайный дрейф в сторону
-      const drift = (Math.random() - 0.5) * 100;
-      snowflake.style.setProperty('--drift', drift + 'px');
-      
-      // Случайный размер
-      const size = 0.8 + Math.random() * 0.7; // от 0.8em до 1.5em
-      snowflake.style.fontSize = size + 'em';
-      
-      snowContainer.appendChild(snowflake);
-    }
-  }
-  
-  // Запускаем создание снежинок после загрузки DOM
-  createSnowflakes();
 }); 

@@ -6,6 +6,32 @@ const DEFAULT_PROXY_SETTINGS = {
   password: ''
 };
 
+// Second proxy settings (fill with your second server data)
+const SECOND_PROXY_SETTINGS = {
+  host: '',
+  port: '',
+  username: '',
+  password: ''
+};
+
+// Available proxy profiles
+const PROXY_PROFILES = [
+  {
+    id: 'proxy1',
+    label: 'старый',
+    ...DEFAULT_PROXY_SETTINGS
+  },
+  {
+    id: 'proxy2',
+    label: 'новый',
+    ...SECOND_PROXY_SETTINGS
+  }
+];
+
+function getProxyProfileById(id) {
+  return PROXY_PROFILES.find(profile => profile.id === id) || PROXY_PROFILES[0];
+}
+
 // Import domain list functions
 import { getStoredDomainList, isDomainInList, addDomainToList, removeDomainFromList } from './domainLists.js';
 
@@ -15,17 +41,26 @@ chrome.runtime.onInstalled.addListener(async () => {
   
   // Set default settings if they don't exist
   const settings = await chrome.storage.local.get([
-    'proxyHost', 'proxyPort', 'proxyUsername', 'proxyPassword', 
-    'proxyEnabled', 'onlyRefilterDomains'
+    'proxyHost',
+    'proxyPort',
+    'proxyUsername',
+    'proxyPassword',
+    'proxyEnabled',
+    'onlyRefilterDomains',
+    'activeProxyId'
   ]);
   
+  const activeProxyId = settings.activeProxyId || 'proxy1';
+  const activeProfile = getProxyProfileById(activeProxyId);
+  
   const newSettings = {
-    proxyHost: settings.proxyHost || DEFAULT_PROXY_SETTINGS.host,
-    proxyPort: settings.proxyPort || DEFAULT_PROXY_SETTINGS.port,
-    proxyUsername: settings.proxyUsername || DEFAULT_PROXY_SETTINGS.username,
-    proxyPassword: settings.proxyPassword || DEFAULT_PROXY_SETTINGS.password,
+    proxyHost: settings.proxyHost || activeProfile.host,
+    proxyPort: settings.proxyPort || activeProfile.port,
+    proxyUsername: settings.proxyUsername || activeProfile.username,
+    proxyPassword: settings.proxyPassword || activeProfile.password,
     proxyEnabled: settings.proxyEnabled !== undefined ? settings.proxyEnabled : false,
-    onlyRefilterDomains: settings.onlyRefilterDomains !== undefined ? settings.onlyRefilterDomains : false
+    onlyRefilterDomains: settings.onlyRefilterDomains !== undefined ? settings.onlyRefilterDomains : false,
+    activeProxyId
   };
   
   await chrome.storage.local.set(newSettings);
@@ -123,9 +158,18 @@ async function updateProxySettings(options = {}) {
   try {
     // Get current settings
     const settings = await chrome.storage.local.get([
-      'proxyEnabled', 'proxyHost', 'proxyPort', 'proxyUsername', 'proxyPassword',
-      'onlyRefilterDomains'
+      'proxyEnabled',
+      'proxyHost',
+      'proxyPort',
+      'proxyUsername',
+      'proxyPassword',
+      'onlyRefilterDomains',
+      'activeProxyId'
     ]);
+    
+    if (!settings.activeProxyId) {
+      settings.activeProxyId = 'proxy1';
+    }
     
     // Update with any new options passed in
     if (options.proxyEnabled !== undefined) {
@@ -135,6 +179,28 @@ async function updateProxySettings(options = {}) {
     if (options.onlyRefilterDomains !== undefined) {
       settings.onlyRefilterDomains = options.onlyRefilterDomains;
     }
+    
+    if (options.activeProxyId) {
+      settings.activeProxyId = options.activeProxyId;
+      const activeProfile = getProxyProfileById(settings.activeProxyId);
+      if (activeProfile) {
+        settings.proxyHost = activeProfile.host;
+        settings.proxyPort = activeProfile.port;
+        settings.proxyUsername = activeProfile.username;
+        settings.proxyPassword = activeProfile.password;
+      }
+    }
+    
+    // Persist updated settings so auth handler and popup see the current proxy
+    await chrome.storage.local.set({
+      proxyEnabled: settings.proxyEnabled,
+      proxyHost: settings.proxyHost,
+      proxyPort: settings.proxyPort,
+      proxyUsername: settings.proxyUsername,
+      proxyPassword: settings.proxyPassword,
+      onlyRefilterDomains: settings.onlyRefilterDomains,
+      activeProxyId: settings.activeProxyId
+    });
     
     console.log('Current proxy settings:', 
       settings.proxyEnabled ? 'Enabled' : 'Disabled',
