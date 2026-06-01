@@ -1,10 +1,36 @@
 import { updateDomainList, getStoredDomainList, removeDomainFromList } from './domainLists.js';
+import {
+  MAX_PROXY_SERVERS,
+  getProxyServers,
+  saveProxyServers,
+  initializeProxyServersIfNeeded,
+  generateServerId,
+  applyActiveServerToStorage,
+  isBlankServer
+} from './proxyServers.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
-  // Элементы управления
   const proxyEnabledToggle = document.getElementById('proxyEnabled');
   const onlyRefilterDomainsToggle = document.getElementById('onlyRefilterDomains');
   const proxyProfileSelect = document.getElementById('proxyProfileSelect');
+  const openSettingsBtn = document.getElementById('openSettingsBtn');
+  const closeSettingsBtn = document.getElementById('closeSettingsBtn');
+  const settingsPanel = document.getElementById('settingsPanel');
+  const serverTabs = document.getElementById('serverTabs');
+  const serverLabelInput = document.getElementById('serverLabel');
+  const serverHostInput = document.getElementById('serverHost');
+  const serverPortInput = document.getElementById('serverPort');
+  const serverUsernameInput = document.getElementById('serverUsername');
+  const serverPasswordInput = document.getElementById('serverPassword');
+  const togglePasswordBtn = document.getElementById('togglePasswordBtn');
+  const togglePasswordIcon = document.getElementById('togglePasswordIcon');
+  const addServerBtn = document.getElementById('addServerBtn');
+  const deleteServerBtn = document.getElementById('deleteServerBtn');
+  const saveServersBtn = document.getElementById('saveServersBtn');
+  const settingsStatus = document.getElementById('settingsStatus');
+
+  let draftServers = [];
+  let editingServerIndex = 0;
   const domainListSection = document.getElementById('domainListSection');
   const refreshDomainListBtn = document.getElementById('refreshDomainList');
   const domainCountElement = document.getElementById('domainCount');
@@ -14,21 +40,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   const removeCurrentSiteBtn = document.getElementById('removeCurrentSiteBtn');
   const addSiteStatus = document.getElementById('addSiteStatus');
 
-  // Загрузка настроек
+  await initializeProxyServersIfNeeded();
+
   const settings = await chrome.storage.local.get([
     'proxyEnabled',
     'onlyRefilterDomains',
     'activeProxyId'
   ]);
 
-  // Обновление UI на основе настроек
   proxyEnabledToggle.checked = settings.proxyEnabled || false;
   onlyRefilterDomainsToggle.checked = settings.onlyRefilterDomains || false;
   updateStatus(settings.proxyEnabled);
-  
-  if (proxyProfileSelect) {
-    proxyProfileSelect.value = settings.activeProxyId || 'proxy1';
-  }
+
+  await refreshProxyProfileSelect(settings.activeProxyId);
 
   // Показать/скрыть секцию доменов в зависимости от настроек
   if (settings.onlyRefilterDomains) {
@@ -106,18 +130,261 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   });
   
-  // Обработчик переключения профиля прокси
   if (proxyProfileSelect) {
     proxyProfileSelect.addEventListener('change', async () => {
-      const selectedId = proxyProfileSelect.value || 'proxy1';
-      
-      await chrome.storage.local.set({ activeProxyId: selectedId });
-      
+      const selectedId = proxyProfileSelect.value;
+      await applyActiveServerToStorage(selectedId);
       chrome.runtime.sendMessage({
         action: 'updateProxySettings',
         activeProxyId: selectedId
       });
     });
+  }
+
+  openSettingsBtn.addEventListener('click', async () => {
+    draftServers = await getProxyServers();
+    const { activeProxyId } = await chrome.storage.local.get('activeProxyId');
+    const idx = draftServers.findIndex(s => s.id === activeProxyId);
+    editingServerIndex = idx >= 0 ? idx : 0;
+    renderServerTabs();
+    loadServerFormFromDraft();
+    updateSettingsButtonsState();
+    settingsStatus.textContent = '';
+    settingsStatus.className = 'settings-status';
+    settingsPanel.classList.remove('hidden');
+  });
+
+  function closeSettingsPanel() {
+    settingsPanel.classList.add('hidden');
+  }
+
+  closeSettingsBtn.addEventListener('click', closeSettingsPanel);
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !settingsPanel.classList.contains('hidden')) {
+      closeSettingsPanel();
+    }
+  });
+
+  serverLabelInput.addEventListener('input', syncFormToDraft);
+  serverHostInput.addEventListener('input', syncFormToDraft);
+  serverPortInput.addEventListener('input', syncFormToDraft);
+  serverUsernameInput.addEventListener('input', syncFormToDraft);
+  serverPasswordInput.addEventListener('input', syncFormToDraft);
+
+  function resetPasswordVisibility() {
+    serverPasswordInput.type = 'password';
+    togglePasswordIcon.textContent = 'visibility';
+    togglePasswordBtn.title = 'Показать пароль';
+    togglePasswordBtn.setAttribute('aria-label', 'Показать пароль');
+  }
+
+  togglePasswordBtn.addEventListener('click', () => {
+    const show = serverPasswordInput.type === 'password';
+    serverPasswordInput.type = show ? 'text' : 'password';
+    togglePasswordIcon.textContent = show ? 'visibility_off' : 'visibility';
+    togglePasswordBtn.title = show ? 'Скрыть пароль' : 'Показать пароль';
+    togglePasswordBtn.setAttribute('aria-label', show ? 'Скрыть пароль' : 'Показать пароль');
+  });
+
+  addServerBtn.addEventListener('click', () => {
+    if (draftServers.length >= MAX_PROXY_SERVERS) {
+      showSettingsStatus(`Максимум ${MAX_PROXY_SERVERS} сервера`, 'error');
+      return;
+    }
+    syncFormToDraft();
+    const n = draftServers.length + 1;
+    draftServers.push({
+      id: generateServerId(),
+      label: `Сервер ${n}`,
+      host: '',
+      port: '8080',
+      username: '',
+      password: ''
+    });
+    editingServerIndex = draftServers.length - 1;
+    renderServerTabs();
+    loadServerFormFromDraft();
+    updateSettingsButtonsState();
+    showSettingsStatus('Новый сервер добавлен — заполните данные', 'success');
+  });
+
+  deleteServerBtn.addEventListener('click', async () => {
+    if (draftServers.length <= 1) {
+      showSettingsStatus('Нельзя удалить последний сервер', 'error');
+      return;
+    }
+    syncFormToDraft();
+    const removedId = draftServers[editingServerIndex].id;
+    draftServers.splice(editingServerIndex, 1);
+    if (editingServerIndex >= draftServers.length) {
+      editingServerIndex = draftServers.length - 1;
+    }
+    renderServerTabs();
+    loadServerFormFromDraft();
+    updateSettingsButtonsState();
+
+    const { activeProxyId } = await chrome.storage.local.get('activeProxyId');
+    if (activeProxyId === removedId) {
+      await applyActiveServerToStorage(draftServers[0].id);
+      chrome.runtime.sendMessage({
+        action: 'updateProxySettings',
+        activeProxyId: draftServers[0].id
+      });
+      await refreshProxyProfileSelect(draftServers[0].id);
+    }
+    showSettingsStatus('Сервер удалён. Нажмите «Сохранить» для записи', 'success');
+  });
+
+  saveServersBtn.addEventListener('click', async () => {
+    syncFormToDraft();
+    const validationError = validateDraftServers();
+    if (validationError) {
+      showSettingsStatus(validationError, 'error');
+      return;
+    }
+
+    saveServersBtn.disabled = true;
+    try {
+      const saved = await saveProxyServers(draftServers);
+      draftServers = saved;
+      if (editingServerIndex >= draftServers.length) {
+        editingServerIndex = Math.max(0, draftServers.length - 1);
+      }
+      renderServerTabs();
+      loadServerFormFromDraft();
+
+      const { activeProxyId } = await chrome.storage.local.get('activeProxyId');
+      let nextActiveId = activeProxyId;
+      if (!saved.find(s => s.id === activeProxyId)) {
+        nextActiveId = saved[0].id;
+      }
+      await applyActiveServerToStorage(nextActiveId);
+      await refreshProxyProfileSelect(nextActiveId);
+
+      chrome.runtime.sendMessage({
+        action: 'updateProxySettings',
+        activeProxyId: nextActiveId,
+        proxyServersUpdated: true
+      });
+
+      showSettingsStatus('Настройки сохранены', 'success');
+    } catch (error) {
+      console.error('Error saving servers:', error);
+      showSettingsStatus('Ошибка сохранения: ' + error.message, 'error');
+    } finally {
+      saveServersBtn.disabled = false;
+    }
+  });
+
+  function syncFormToDraft() {
+    const server = draftServers[editingServerIndex];
+    if (!server) return;
+    server.label = serverLabelInput.value.trim() || `Сервер ${editingServerIndex + 1}`;
+    server.host = serverHostInput.value.trim();
+    server.port = serverPortInput.value.trim();
+    server.username = serverUsernameInput.value;
+    server.password = serverPasswordInput.value;
+    renderServerTabs();
+  }
+
+  function loadServerFormFromDraft() {
+    const server = draftServers[editingServerIndex];
+    if (!server) return;
+    serverLabelInput.value = server.label || '';
+    serverHostInput.value = server.host || '';
+    serverPortInput.value = server.port || '';
+    serverUsernameInput.value = server.username || '';
+    serverPasswordInput.value = server.password || '';
+    resetPasswordVisibility();
+  }
+
+  function renderServerTabs() {
+    serverTabs.innerHTML = '';
+    draftServers.forEach((server, index) => {
+      const tab = document.createElement('button');
+      tab.type = 'button';
+      tab.className = 'server-tab' + (index === editingServerIndex ? ' active' : '');
+      tab.textContent = server.label || `Сервер ${index + 1}`;
+      tab.title = server.host ? `${server.host}:${server.port}` : 'Не настроен';
+      tab.addEventListener('click', () => {
+        syncFormToDraft();
+        editingServerIndex = index;
+        renderServerTabs();
+        loadServerFormFromDraft();
+        updateSettingsButtonsState();
+      });
+      serverTabs.appendChild(tab);
+    });
+  }
+
+  function updateSettingsButtonsState() {
+    addServerBtn.disabled = draftServers.length >= MAX_PROXY_SERVERS;
+    deleteServerBtn.disabled = draftServers.length <= 1;
+  }
+
+  function validateDraftServers() {
+    let hasFilledServer = false;
+
+    for (let i = 0; i < draftServers.length; i++) {
+      const s = draftServers[i];
+      if (isBlankServer(s)) {
+        continue;
+      }
+      hasFilledServer = true;
+      const name = s.label || `Сервер ${i + 1}`;
+      if (!s.host || !s.host.trim()) {
+        editingServerIndex = i;
+        renderServerTabs();
+        loadServerFormFromDraft();
+        return `${name}: укажите IP или хост`;
+      }
+      if (!s.port || !/^\d+$/.test(String(s.port).trim())) {
+        editingServerIndex = i;
+        renderServerTabs();
+        loadServerFormFromDraft();
+        return `${name}: укажите корректный порт`;
+      }
+      s.port = String(s.port).trim();
+    }
+
+    if (!hasFilledServer) {
+      const i = editingServerIndex;
+      const s = draftServers[i];
+      if (!s) return 'Добавьте хотя бы один сервер';
+      const name = s.label || `Сервер ${i + 1}`;
+      if (!s.host || !s.host.trim()) {
+        return `${name}: укажите IP или хост`;
+      }
+      if (!s.port || !/^\d+$/.test(String(s.port).trim())) {
+        return `${name}: укажите корректный порт`;
+      }
+      s.port = String(s.port).trim();
+    }
+
+    return null;
+  }
+
+  function showSettingsStatus(text, type) {
+    settingsStatus.textContent = text;
+    settingsStatus.className = 'settings-status' + (type ? ' ' + type : '');
+  }
+
+  async function refreshProxyProfileSelect(activeId) {
+    if (!proxyProfileSelect) return;
+    const servers = await getProxyServers();
+    const currentId = activeId || proxyProfileSelect.value || servers[0]?.id;
+    proxyProfileSelect.innerHTML = '';
+    servers.forEach(server => {
+      const option = document.createElement('option');
+      option.value = server.id;
+      option.textContent = server.label || server.host;
+      proxyProfileSelect.appendChild(option);
+    });
+    if (servers.length > 0) {
+      const exists = servers.some(s => s.id === currentId);
+      proxyProfileSelect.value = exists ? currentId : servers[0].id;
+    }
   }
 
   // Обработчик обновления списка доменов

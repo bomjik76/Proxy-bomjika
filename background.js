@@ -1,71 +1,30 @@
-// Default proxy settings
-const DEFAULT_PROXY_SETTINGS = {
-  host: '',
-  port: '',
-  username: '',
-  password: ''
-};
-
-// Second proxy settings (fill with your second server data)
-const SECOND_PROXY_SETTINGS = {
-  host: '',
-  port: '',
-  username: '',
-  password: ''
-};
-
-// Available proxy profiles
-const PROXY_PROFILES = [
-  {
-    id: 'proxy1',
-    label: 'старый',
-    ...DEFAULT_PROXY_SETTINGS
-  },
-  {
-    id: 'proxy2',
-    label: 'новый',
-    ...SECOND_PROXY_SETTINGS
-  }
-];
-
-function getProxyProfileById(id) {
-  return PROXY_PROFILES.find(profile => profile.id === id) || PROXY_PROFILES[0];
-}
-
-// Import domain list functions
 import { getStoredDomainList, isDomainInList, addDomainToList, removeDomainFromList } from './domainLists.js';
+import {
+  initializeProxyServersIfNeeded,
+  applyActiveServerToStorage
+} from './proxyServers.js';
+
+initializeProxyServersIfNeeded().catch(err => console.error('Proxy servers init:', err));
 
 // Initialize proxy settings on extension install or update
 chrome.runtime.onInstalled.addListener(async () => {
   console.log('Extension installed - initializing default settings');
-  
-  // Set default settings if they don't exist
+
+  await initializeProxyServersIfNeeded();
+
   const settings = await chrome.storage.local.get([
-    'proxyHost',
-    'proxyPort',
-    'proxyUsername',
-    'proxyPassword',
     'proxyEnabled',
     'onlyRefilterDomains',
     'activeProxyId'
   ]);
-  
-  const activeProxyId = settings.activeProxyId || 'proxy1';
-  const activeProfile = getProxyProfileById(activeProxyId);
-  
-  const newSettings = {
-    proxyHost: settings.proxyHost || activeProfile.host,
-    proxyPort: settings.proxyPort || activeProfile.port,
-    proxyUsername: settings.proxyUsername || activeProfile.username,
-    proxyPassword: settings.proxyPassword || activeProfile.password,
+
+  await applyActiveServerToStorage(settings.activeProxyId);
+
+  await chrome.storage.local.set({
     proxyEnabled: settings.proxyEnabled !== undefined ? settings.proxyEnabled : false,
-    onlyRefilterDomains: settings.onlyRefilterDomains !== undefined ? settings.onlyRefilterDomains : false,
-    activeProxyId
-  };
-  
-  await chrome.storage.local.set(newSettings);
-  
-  // Apply proxy settings based on stored configuration
+    onlyRefilterDomains: settings.onlyRefilterDomains !== undefined ? settings.onlyRefilterDomains : false
+  });
+
   await updateProxySettings();
 });
 
@@ -182,12 +141,22 @@ async function updateProxySettings(options = {}) {
     
     if (options.activeProxyId) {
       settings.activeProxyId = options.activeProxyId;
-      const activeProfile = getProxyProfileById(settings.activeProxyId);
-      if (activeProfile) {
-        settings.proxyHost = activeProfile.host;
-        settings.proxyPort = activeProfile.port;
-        settings.proxyUsername = activeProfile.username;
-        settings.proxyPassword = activeProfile.password;
+      const applied = await applyActiveServerToStorage(settings.activeProxyId);
+      if (applied) {
+        settings.proxyHost = applied.host;
+        settings.proxyPort = String(applied.port);
+        settings.proxyUsername = applied.username || '';
+        settings.proxyPassword = applied.password || '';
+      }
+    }
+
+    if (options.proxyServersUpdated) {
+      const applied = await applyActiveServerToStorage(settings.activeProxyId);
+      if (applied) {
+        settings.proxyHost = applied.host;
+        settings.proxyPort = String(applied.port);
+        settings.proxyUsername = applied.username || '';
+        settings.proxyPassword = applied.password || '';
       }
     }
     

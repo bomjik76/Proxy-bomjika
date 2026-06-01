@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Прокси bomjika",
-  "version": "1.7",
-  "description": "Безопасный прокси для обхода блокировок и доступа к заблокированным сайтам",
+  "version": "2.0",
+  "description": "Прокси для обхода блокировок и доступа к заблокированным сайтам",
   "permissions": [
     "proxy",
     "storage",
@@ -19,7 +19,7 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["domainLists.js", "domain.txt", "popup.js", "background.js"],
+      "resources": ["domainLists.js", "domain.txt", "popup.js", "background.js", "proxyServers.js"],
       "matches": ["<all_urls>"]
     }
   ],
