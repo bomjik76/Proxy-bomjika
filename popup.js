@@ -6,7 +6,8 @@ import {
   initializeProxyServersIfNeeded,
   generateServerId,
   applyActiveServerToStorage,
-  isBlankServer
+  isBlankServer,
+  sanitizeProxyServers
 } from './proxyServers.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -26,6 +27,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const togglePasswordIcon = document.getElementById('togglePasswordIcon');
   const addServerBtn = document.getElementById('addServerBtn');
   const deleteServerBtn = document.getElementById('deleteServerBtn');
+  const copyServersBtn = document.getElementById('copyServersBtn');
+  const pasteServersBtn = document.getElementById('pasteServersBtn');
   const saveServersBtn = document.getElementById('saveServersBtn');
   const settingsStatus = document.getElementById('settingsStatus');
 
@@ -186,6 +189,109 @@ document.addEventListener('DOMContentLoaded', async () => {
     togglePasswordBtn.title = show ? 'Скрыть пароль' : 'Показать пароль';
     togglePasswordBtn.setAttribute('aria-label', show ? 'Скрыть пароль' : 'Показать пароль');
   });
+
+  function fallbackCopyText(text) {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed';
+      ta.style.left = '-10000px';
+      ta.style.top = '-10000px';
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return ok;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  async function tryClipboardReadText() {
+    // navigator.clipboard.readText может быть недоступен в некоторых окружениях,
+    // поэтому делаем безопасный fallback через prompt.
+    if (navigator.clipboard && typeof navigator.clipboard.readText === 'function') {
+      return await navigator.clipboard.readText();
+    }
+    return null;
+  }
+
+  if (copyServersBtn) {
+    copyServersBtn.addEventListener('click', async () => {
+      syncFormToDraft();
+      const payload = {
+        format: 'proxyServers',
+        version: 1,
+        servers: draftServers
+      };
+      const text = JSON.stringify(payload, null, 2);
+      try {
+        if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+          await navigator.clipboard.writeText(text);
+        } else {
+          const ok = fallbackCopyText(text);
+          if (!ok) throw new Error('Не удалось скопировать в буфер');
+        }
+        showSettingsStatus('Серверы скопированы в буфер обмена', 'success');
+      } catch (e) {
+        const ok = fallbackCopyText(text);
+        if (!ok) {
+          showSettingsStatus('Скопировать не удалось. Скопируйте JSON вручную.', 'error');
+          // eslint-disable-next-line no-alert
+          window.prompt('Скопируйте JSON серверов:', text);
+          return;
+        }
+        showSettingsStatus('Серверы скопированы (fallback)', 'success');
+      }
+    });
+  }
+
+  if (pasteServersBtn) {
+    pasteServersBtn.addEventListener('click', async () => {
+      pasteServersBtn.disabled = true;
+      try {
+        let text = null;
+        try {
+          text = await tryClipboardReadText();
+        } catch (e) {
+          text = null;
+        }
+
+        if (!text) {
+          // eslint-disable-next-line no-alert
+          text = window.prompt('Вставьте JSON серверов из буфера обмена:');
+        }
+
+        if (!text || !text.trim()) {
+          showSettingsStatus('Буфер обмена пуст', 'error');
+          return;
+        }
+
+        const parsed = JSON.parse(text);
+        const serversRaw = Array.isArray(parsed) ? parsed : parsed?.servers;
+        if (!Array.isArray(serversRaw)) {
+          throw new Error('Неверный формат JSON');
+        }
+
+        draftServers = sanitizeProxyServers(serversRaw).slice(0, MAX_PROXY_SERVERS);
+        if (!draftServers || draftServers.length === 0) {
+          throw new Error('Пустой список серверов');
+        }
+
+        editingServerIndex = 0;
+        renderServerTabs();
+        loadServerFormFromDraft();
+        updateSettingsButtonsState();
+        showSettingsStatus('Серверы вставлены. Нажмите «Сохранить»', 'success');
+      } catch (e) {
+        console.error('Error pasting servers:', e);
+        showSettingsStatus('Ошибка вставки: ' + (e?.message || 'неизвестно'), 'error');
+      } finally {
+        pasteServersBtn.disabled = false;
+      }
+    });
+  }
 
   addServerBtn.addEventListener('click', () => {
     if (draftServers.length >= MAX_PROXY_SERVERS) {
@@ -427,7 +533,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   addCurrentSiteBtn.addEventListener('click', async () => {
     addCurrentSiteBtn.disabled = true;
     removeCurrentSiteBtn.disabled = true;
-    addSiteStatus.textContent = 'Получение текущего сайта...';
+    addSiteStatus.textContent = 'Сбор доменов вкладки...';
     addSiteStatus.className = 'notification-status';
     
     try {
@@ -445,26 +551,32 @@ document.addEventListener('DOMContentLoaded', async () => {
         throw new Error('Не удалось определить домен текущего сайта');
       }
       
-      // Добавляем домен в список
+      // Добавляем домены только по типам main_frame/xmlhttprequest/fetch
       const response = await chrome.runtime.sendMessage({ 
-        action: 'addDomainToList',
-        domain: domain
+        action: 'addTrackedTabDomains',
+        tabId: currentTab.id,
+        fallbackDomain: domain
       });
       
       if (response && response.success) {
-        if (response.alreadyExists) {
-          addSiteStatus.textContent = `Сайт ${domain} уже в списке`;
-        } else {
-          addSiteStatus.textContent = `Сайт ${domain} успешно добавлен`;
-          
-          // Обновляем счетчик доменов
+        const added = response.addedCount || 0;
+        const existing = response.existingCount || 0;
+        const failed = response.failedCount || 0;
+        const processed = response.processedCount || 0;
+
+        if (added > 0) {
+          addSiteStatus.textContent = `Добавлено доменов: ${added} из ${processed}`;
+          addSiteStatus.className = 'notification-status success';
           await loadDomainListInfo();
-          
-          // Добавляем анимацию к счетчику доменов
           domainCountElement.classList.add('pulse');
           setTimeout(() => domainCountElement.classList.remove('pulse'), 1500);
+        } else if (existing > 0 && failed === 0) {
+          addSiteStatus.textContent = 'Все найденные домены уже есть в списке';
+          addSiteStatus.className = 'notification-status success';
+        } else {
+          addSiteStatus.textContent = `Не удалось добавить домены (ошибок: ${failed})`;
+          addSiteStatus.className = 'notification-status error';
         }
-        addSiteStatus.className = 'notification-status success';
       } else {
         addSiteStatus.textContent = 'Ошибка: ' + (response?.error || 'Неизвестная ошибка');
         addSiteStatus.className = 'notification-status error';

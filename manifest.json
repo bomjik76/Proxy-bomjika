@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Прокси bomjika",
-  "version": "2.0",
-  "description": "Прокси для обхода блокировок и доступа к заблокированным сайтам",
+  "version": "2.0.1",
+  "description": "Приложение для управления и использования прокси серверов браузере",
   "permissions": [
     "proxy",
     "storage",

@@ -35,6 +35,61 @@ chrome.webRequest.onAuthRequired.addListener(
   ['asyncBlocking']
 );
 
+const TRACKED_REQUEST_TYPES = new Set(['main_frame', 'xmlhttprequest', 'fetch']);
+const TAB_DOMAINS_TTL_MS = 15 * 60 * 1000;
+const tabTrackedDomains = new Map();
+
+function trackTabDomain(details) {
+  if (!details || details.tabId === undefined || details.tabId < 0) {
+    return;
+  }
+  if (!TRACKED_REQUEST_TYPES.has(details.type)) {
+    return;
+  }
+
+  try {
+    const url = new URL(details.url);
+    const host = (url.hostname || '').toLowerCase();
+    if (!host || host === 'localhost') {
+      return;
+    }
+
+    const existing = tabTrackedDomains.get(details.tabId) || { domains: new Set(), lastSeen: 0 };
+    existing.domains.add(host);
+    existing.lastSeen = Date.now();
+    tabTrackedDomains.set(details.tabId, existing);
+  } catch (error) {
+    console.warn('Failed to track tab domain:', error);
+  }
+}
+
+function cleanupTrackedDomains() {
+  const now = Date.now();
+  for (const [tabId, data] of tabTrackedDomains.entries()) {
+    if (!data || now - data.lastSeen > TAB_DOMAINS_TTL_MS) {
+      tabTrackedDomains.delete(tabId);
+    }
+  }
+}
+
+function getTrackedDomainsForTab(tabId) {
+  cleanupTrackedDomains();
+  const entry = tabTrackedDomains.get(tabId);
+  if (!entry || !entry.domains) {
+    return [];
+  }
+  return Array.from(entry.domains);
+}
+
+chrome.webRequest.onCompleted.addListener(
+  trackTabDomain,
+  { urls: ["<all_urls>"] }
+);
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+  tabTrackedDomains.delete(tabId);
+});
+
 // Listen for messages from popup
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   console.log('Message received:', message.action);
@@ -70,6 +125,61 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           console.error('Error adding domain:', error);
           sendResponse({ success: false, error: error.message });
         });
+      return true;
+
+    case 'addTrackedTabDomains':
+      if (message.tabId === undefined || message.tabId < 0) {
+        sendResponse({ success: false, error: 'Tab ID not specified' });
+        return true;
+      }
+
+      (async () => {
+        const trackedDomains = getTrackedDomainsForTab(message.tabId);
+        const domainsToAdd = trackedDomains.length > 0
+          ? trackedDomains
+          : (message.fallbackDomain ? [message.fallbackDomain] : []);
+
+        if (domainsToAdd.length === 0) {
+          sendResponse({ success: false, error: 'No tracked domains for this tab yet' });
+          return;
+        }
+
+        let addedCount = 0;
+        let existingCount = 0;
+        let failedCount = 0;
+        const addedDomains = [];
+
+        for (const domain of domainsToAdd) {
+          try {
+            const result = await addDomainToList(domain);
+            if (result.alreadyExists) {
+              existingCount++;
+            } else {
+              addedCount++;
+              addedDomains.push(domain);
+            }
+          } catch (err) {
+            failedCount++;
+            console.warn(`Failed to add tracked domain ${domain}:`, err);
+          }
+        }
+
+        if (addedCount > 0) {
+          await updateProxySettings();
+        }
+
+        sendResponse({
+          success: true,
+          addedCount,
+          existingCount,
+          failedCount,
+          processedCount: domainsToAdd.length,
+          addedDomains
+        });
+      })().catch((error) => {
+        console.error('Error adding tracked tab domains:', error);
+        sendResponse({ success: false, error: error.message });
+      });
       return true;
       
     case 'removeDomainFromList':
