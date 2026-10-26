@@ -1,4 +1,4 @@
-export const MAX_PROXY_SERVERS = 4;
+export const MAX_PROXY_SERVERS = 10;
 
 export const DEFAULT_PROXY_SERVERS = [
   {
@@ -10,6 +10,25 @@ export const DEFAULT_PROXY_SERVERS = [
     password: ''
   }
 ];
+
+export function normalizeProxyHost(host) {
+  const raw = String(host || '').trim();
+  const h = raw.toLowerCase();
+  if (
+    h === 'localhost' ||
+    h === '::1' ||
+    h === '[::1]' ||
+    h === '0:0:0:0:0:0:0:1'
+  ) {
+    return '127.0.0.1';
+  }
+  return raw;
+}
+
+export function isLoopbackProxyHost(host) {
+  const h = normalizeProxyHost(host).toLowerCase();
+  return h === '127.0.0.1' || /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(h);
+}
 
 export function isBlankServer(server) {
   if (!server) return true;
@@ -110,7 +129,7 @@ export async function applyActiveServerToStorage(activeProxyId) {
   }
   await chrome.storage.local.set({
     activeProxyId: server.id,
-    proxyHost: server.host,
+    proxyHost: normalizeProxyHost(server.host),
     proxyPort: String(server.port),
     proxyUsername: server.username || '',
     proxyPassword: server.password || ''

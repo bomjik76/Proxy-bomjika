@@ -1,4 +1,5 @@
 import { updateDomainList, getStoredDomainList, removeDomainFromList } from './domainLists.js';
+import { initSeasonalTheme } from './seasonalTheme.js';
 import {
   MAX_PROXY_SERVERS,
   getProxyServers,
@@ -7,10 +8,13 @@ import {
   generateServerId,
   applyActiveServerToStorage,
   isBlankServer,
-  sanitizeProxyServers
+  sanitizeProxyServers,
+  normalizeProxyHost
 } from './proxyServers.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
+  await initSeasonalTheme();
+
   const proxyEnabledToggle = document.getElementById('proxyEnabled');
   const onlyRefilterDomainsToggle = document.getElementById('onlyRefilterDomains');
   const proxyProfileSelect = document.getElementById('proxyProfileSelect');
@@ -154,11 +158,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     updateSettingsButtonsState();
     settingsStatus.textContent = '';
     settingsStatus.className = 'settings-status';
+    document.body.classList.add('settings-open');
     settingsPanel.classList.remove('hidden');
   });
 
   function closeSettingsPanel() {
     settingsPanel.classList.add('hidden');
+    document.body.classList.remove('settings-open');
   }
 
   closeSettingsBtn.addEventListener('click', closeSettingsPanel);
@@ -295,7 +301,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   addServerBtn.addEventListener('click', () => {
     if (draftServers.length >= MAX_PROXY_SERVERS) {
-      showSettingsStatus(`Максимум ${MAX_PROXY_SERVERS} сервера`, 'error');
+      showSettingsStatus(`Максимум ${MAX_PROXY_SERVERS} серверов`, 'error');
       return;
     }
     syncFormToDraft();
@@ -387,7 +393,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const server = draftServers[editingServerIndex];
     if (!server) return;
     server.label = serverLabelInput.value.trim() || `Сервер ${editingServerIndex + 1}`;
-    server.host = serverHostInput.value.trim();
+    server.host = normalizeProxyHost(serverHostInput.value);
     server.port = serverPortInput.value.trim();
     server.username = serverUsernameInput.value;
     server.password = serverPasswordInput.value;

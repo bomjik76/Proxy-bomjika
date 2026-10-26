@@ -1,7 +1,9 @@
 import { getStoredDomainList, isDomainInList, addDomainToList, removeDomainFromList } from './domainLists.js';
 import {
   initializeProxyServersIfNeeded,
-  applyActiveServerToStorage
+  applyActiveServerToStorage,
+  normalizeProxyHost,
+  isLoopbackProxyHost
 } from './proxyServers.js';
 
 initializeProxyServersIfNeeded().catch(err => console.error('Proxy servers init:', err));
@@ -88,6 +90,29 @@ chrome.webRequest.onCompleted.addListener(
 
 chrome.tabs.onRemoved.addListener((tabId) => {
   tabTrackedDomains.delete(tabId);
+});
+
+chrome.commands.onCommand.addListener(async (command) => {
+  try {
+    switch (command) {
+      case 'activate-proxy':
+        await updateProxySettings({ proxyEnabled: true });
+        break;
+      case 'deactivate-proxy':
+        await updateProxySettings({ proxyEnabled: false });
+        break;
+      case 'enable-selective-mode':
+        await updateProxySettings({ onlyRefilterDomains: true });
+        break;
+      case 'disable-selective-mode':
+        await updateProxySettings({ onlyRefilterDomains: false });
+        break;
+      default:
+        break;
+    }
+  } catch (error) {
+    console.error('Shortcut command failed:', command, error);
+  }
 });
 
 // Listen for messages from popup
@@ -249,11 +274,13 @@ async function updateProxySettings(options = {}) {
       settings.onlyRefilterDomains = options.onlyRefilterDomains;
     }
     
+    settings.proxyHost = normalizeProxyHost(settings.proxyHost);
+
     if (options.activeProxyId) {
       settings.activeProxyId = options.activeProxyId;
       const applied = await applyActiveServerToStorage(settings.activeProxyId);
       if (applied) {
-        settings.proxyHost = applied.host;
+        settings.proxyHost = normalizeProxyHost(applied.host);
         settings.proxyPort = String(applied.port);
         settings.proxyUsername = applied.username || '';
         settings.proxyPassword = applied.password || '';
@@ -263,7 +290,7 @@ async function updateProxySettings(options = {}) {
     if (options.proxyServersUpdated) {
       const applied = await applyActiveServerToStorage(settings.activeProxyId);
       if (applied) {
-        settings.proxyHost = applied.host;
+        settings.proxyHost = normalizeProxyHost(applied.host);
         settings.proxyPort = String(applied.port);
         settings.proxyUsername = applied.username || '';
         settings.proxyPassword = applied.password || '';
@@ -425,6 +452,56 @@ async function updateProxySettings(options = {}) {
       });
       
       console.log('PAC script proxy settings applied for selective domains');
+    } else if (isLoopbackProxyHost(settings.proxyHost)) {
+      // Chrome's fixed_servers mode often fails for 127.0.0.1; PAC works reliably.
+      const localPacScript = `
+        function FindProxyForURL(url, host) {
+          var PROXY = "PROXY ${settings.proxyHost}:${settings.proxyPort}";
+          var DIRECT = "DIRECT";
+
+          if (!host) {
+            return DIRECT;
+          }
+
+          if (
+              shExpMatch(url, "chrome://*") ||
+              shExpMatch(url, "chrome-extension://*") ||
+              shExpMatch(url, "edge://*") ||
+              shExpMatch(url, "about:*") ||
+              shExpMatch(url, "moz-extension://*") ||
+              shExpMatch(url, "vivaldi://*") ||
+              shExpMatch(url, "opera://*") ||
+              shExpMatch(url, "file://*") ||
+              shExpMatch(host, "clients*.google.com") ||
+              shExpMatch(host, "*.googleapis.com") ||
+              shExpMatch(host, "*.gstatic.com") ||
+              shExpMatch(host, "*.google.com") ||
+              shExpMatch(host, "connectivitycheck.gstatic.com") ||
+              shExpMatch(host, "www.gstatic.com") ||
+              shExpMatch(host, "captive.apple.com")
+          ) {
+            return DIRECT;
+          }
+
+          if (host === "localhost" || host === "127.0.0.1" || host === "::1") {
+            return DIRECT;
+          }
+
+          return PROXY;
+        }
+      `;
+
+      await chrome.proxy.settings.set({
+        value: {
+          mode: "pac_script",
+          pacScript: {
+            data: localPacScript
+          }
+        },
+        scope: 'regular'
+      });
+
+      console.log('PAC proxy settings applied for local proxy', settings.proxyHost, settings.proxyPort);
     } else {
       // Regular proxy for all traffic
       // Add bypass list for critical services (Google search, AI, Lens, etc.)
@@ -515,7 +592,8 @@ function handleAuthRequest(details, callback) {
       console.log(`Our proxy: ${settings.proxyHost}:${settings.proxyPort}`);
       
       // Make sure we're authenticating for our proxy
-      if (challengerHost === settings.proxyHost && 
+      const sameHost = normalizeProxyHost(challengerHost) === normalizeProxyHost(settings.proxyHost);
+      if (sameHost &&
           (challengerPort === parseInt(settings.proxyPort) || challengerPort === settings.proxyPort)) {
         
         console.log('Providing authentication for our proxy server');
