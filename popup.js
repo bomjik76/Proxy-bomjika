@@ -9,7 +9,8 @@ import {
   applyActiveServerToStorage,
   isBlankServer,
   sanitizeProxyServers,
-  normalizeProxyHost
+  normalizeProxyHost,
+  normalizeProxyScheme
 } from './proxyServers.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -24,6 +25,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const serverTabs = document.getElementById('serverTabs');
   const serverLabelInput = document.getElementById('serverLabel');
   const serverHostInput = document.getElementById('serverHost');
+  const serverSchemeSelect = document.getElementById('serverScheme');
   const serverPortInput = document.getElementById('serverPort');
   const serverUsernameInput = document.getElementById('serverUsername');
   const serverPasswordInput = document.getElementById('serverPassword');
@@ -68,18 +70,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   } else {
     domainListSection.classList.add('hidden');
   }
-
-  // Анимация при наведении для улучшения UX
-  const allToggleCards = document.querySelectorAll('.card');
-  allToggleCards.forEach(card => {
-    card.addEventListener('mouseenter', () => {
-      card.style.backgroundColor = 'rgba(255, 255, 255, 0.95)';
-    });
-    
-    card.addEventListener('mouseleave', () => {
-      card.style.backgroundColor = 'rgba(255, 255, 255, 0.85)';
-    });
-  });
 
   // Обработчик изменения статуса прокси
   proxyEnabledToggle.addEventListener('change', async () => {
@@ -177,6 +167,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   serverLabelInput.addEventListener('input', syncFormToDraft);
   serverHostInput.addEventListener('input', syncFormToDraft);
+  serverSchemeSelect.addEventListener('change', syncFormToDraft);
   serverPortInput.addEventListener('input', syncFormToDraft);
   serverUsernameInput.addEventListener('input', syncFormToDraft);
   serverPasswordInput.addEventListener('input', syncFormToDraft);
@@ -310,7 +301,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       id: generateServerId(),
       label: `Сервер ${n}`,
       host: '',
-      port: '8080',
+      port: '1080',
+      scheme: 'http',
       username: '',
       password: ''
     });
@@ -394,6 +386,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!server) return;
     server.label = serverLabelInput.value.trim() || `Сервер ${editingServerIndex + 1}`;
     server.host = normalizeProxyHost(serverHostInput.value);
+    server.scheme = normalizeProxyScheme(serverSchemeSelect.value);
     server.port = serverPortInput.value.trim();
     server.username = serverUsernameInput.value;
     server.password = serverPasswordInput.value;
@@ -405,6 +398,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!server) return;
     serverLabelInput.value = server.label || '';
     serverHostInput.value = server.host || '';
+    serverSchemeSelect.value = normalizeProxyScheme(server.scheme);
     serverPortInput.value = server.port || '';
     serverUsernameInput.value = server.username || '';
     serverPasswordInput.value = server.password || '';
@@ -418,7 +412,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       tab.type = 'button';
       tab.className = 'server-tab' + (index === editingServerIndex ? ' active' : '');
       tab.textContent = server.label || `Сервер ${index + 1}`;
-      tab.title = server.host ? `${server.host}:${server.port}` : 'Не настроен';
+      tab.title = server.host
+        ? `${normalizeProxyScheme(server.scheme).toUpperCase()} ${server.host}:${server.port}`
+        : 'Не настроен';
       tab.addEventListener('click', () => {
         syncFormToDraft();
         editingServerIndex = index;

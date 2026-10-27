@@ -6,6 +6,7 @@ export const DEFAULT_PROXY_SERVERS = [
     label: 'Сервер 1',
     host: '',
     port: '',
+    scheme: 'http',
     username: '',
     password: ''
   }
@@ -23,6 +24,27 @@ export function normalizeProxyHost(host) {
     return '127.0.0.1';
   }
   return raw;
+}
+
+export function normalizeProxyScheme(scheme) {
+  const s = String(scheme || 'http').toLowerCase().trim();
+  if (s === 'socks5' || s === 'socks') return 'socks5';
+  if (s === 'socks4') return 'socks4';
+  return 'http';
+}
+
+export function getPacProxyToken(host, port, scheme) {
+  const normalized = normalizeProxyScheme(scheme);
+  if (normalized === 'socks5') return `SOCKS5 ${host}:${port}`;
+  if (normalized === 'socks4') return `SOCKS ${host}:${port}`;
+  return `PROXY ${host}:${port}`;
+}
+
+export function getFixedProxyScheme(scheme) {
+  const normalized = normalizeProxyScheme(scheme);
+  if (normalized === 'socks5') return 'socks5';
+  if (normalized === 'socks4') return 'socks4';
+  return 'http';
 }
 
 export function isLoopbackProxyHost(host) {
@@ -48,7 +70,11 @@ export function sanitizeProxyServers(servers) {
   if (filled.length === 0) {
     return [{ ...servers[0] }];
   }
-  return filled.map(s => ({ ...s }));
+  return filled.map(s => ({
+    ...s,
+    host: normalizeProxyHost(s.host),
+    scheme: normalizeProxyScheme(s.scheme)
+  }));
 }
 
 export function generateServerId() {
@@ -131,6 +157,7 @@ export async function applyActiveServerToStorage(activeProxyId) {
     activeProxyId: server.id,
     proxyHost: normalizeProxyHost(server.host),
     proxyPort: String(server.port),
+    proxyScheme: normalizeProxyScheme(server.scheme),
     proxyUsername: server.username || '',
     proxyPassword: server.password || ''
   });

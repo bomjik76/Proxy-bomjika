@@ -22,6 +22,11 @@ spotify-everywhere.com
 spotify.com
 spotify.design
 spotifycdn.com
+spotify-connect.com
+spotify-edge.com
+spotify-misc.com
+spotify-static.com
+spotify.net
 spotifycdn.net
 spotifycharts.com
 spotifycodes.com
@@ -291,6 +296,7 @@ gemini.gstatic.com
 bard.google.com
 notebooklm.google.com
 aistudio.google.com
+copilot.microsoft.com
 jules.google.com
 robinfrontend-pa.googleapis.com
 labs.google.com
@@ -315,6 +321,10 @@ crixet.com
 oaistatic.com
 oaiusercontent.com
 openai.com
+openai-api.com
+openai-cdn.com
+openai-gpt.com
+openai.org
 sora.com
 chatgpt.livekit.cloud
 host.livekit.cloud
@@ -377,6 +387,9 @@ reddit.com
 redd.it
 redditmedia.com
 redditstatic.com
+redditblog.com
+reddithelp.com
+redditmail.com
 
 # Meta (Facebook / Instagram)
 facebook.com
@@ -384,6 +397,9 @@ fb.com
 fbcdn.net
 instagram.com
 cdninstagram.com
+meta.ai
+oculus.com
+threads.net
 
 # WhatsApp / Messenger
 whatsapp.com
@@ -440,3 +456,45 @@ tg.dev
 ton.org
 tx.me
 usercontent.dev
+
+# Netflix
+netflix.com
+netflix.net
+nflxext.com
+nflximg.com
+nflximg.net
+nflxso.net
+nflxvideo.net
+
+# Дизайн / документы
+canva.com
+figma.com
+notion.so
+notion.site
+
+# Новости / медиа
+bbc.com
+bbci.co.uk
+dw.com
+medium.com
+meduza.io
+rferl.org
+theins.ru
+
+# SuperCell
+brawlstars.com
+clashofclans.com
+clashroyale.com
+hayday.com
+haydaygame.com
+squadbustersgame.com
+supercell.com
+supercell.net
+supercellid.com
+
+# Трекеры / библиотеки
+flibusta.is
+kinozal.tv
+nnmclub.to
+rutracker.cc
+rutracker.org

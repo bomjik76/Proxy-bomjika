@@ -166,6 +166,7 @@
     
     .card:hover {
       transform: translateY(-2px);
+      background-color: rgba(255, 255, 255, 0.95);
       box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15), 0 0 30px rgba(255, 255, 255, 0.6);
     }
     
@@ -434,10 +435,10 @@
       position: relative;
       z-index: 1;
       margin: 0 16px 12px;
-      padding: 6px 10px;
+      padding: 6px 8px;
       display: flex;
       justify-content: center;
-      gap: 10px;
+      gap: 6px;
       border-radius: 999px;
       background: rgba(255, 255, 255, 0.7);
       backdrop-filter: blur(8px);
@@ -471,10 +472,104 @@
     }
 
     .season-switcher button[data-season="classic"] { color: #4A90E2; }
+    .season-switcher button[data-season="dark"] { color: #111827; }
     .season-switcher button[data-season="spring"] { color: #10b981; }
     .season-switcher button[data-season="summer"] { color: #eab308; }
     .season-switcher button[data-season="autumn"] { color: #f97316; }
     .season-switcher button[data-season="winter"] { color: #60a5fa; }
+
+    body[data-season="dark"] {
+      color: #e8eaed;
+      color-scheme: dark;
+    }
+
+    body[data-season="dark"] h2 {
+      color: #f1f3f4;
+      text-shadow: none;
+    }
+
+    body[data-season="dark"] .header,
+    body[data-season="dark"] .footer,
+    body[data-season="dark"] .settings-header {
+      background: rgba(0, 0, 0, 0.62);
+      border-color: rgba(255, 255, 255, 0.08);
+    }
+
+    body[data-season="dark"] .footer {
+      color: #9aa0a6;
+    }
+
+    body[data-season="dark"] .card {
+      background-color: rgba(28, 28, 30, 0.9);
+      border-color: rgba(255, 255, 255, 0.08);
+      box-shadow: 0 3px 16px rgba(0, 0, 0, 0.45);
+    }
+
+    body[data-season="dark"] .card:hover {
+      background-color: rgba(48, 48, 52, 0.95);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.55);
+    }
+
+    body[data-season="dark"] .toggle-label,
+    body[data-season="dark"] h3,
+    body[data-season="dark"] .domain-list-stats,
+    body[data-season="dark"] .notification-status,
+    body[data-season="dark"] .form-group label,
+    body[data-season="dark"] .settings-header h3 {
+      color: #e8eaed;
+    }
+
+    body[data-season="dark"] .domain-list-header {
+      border-bottom-color: rgba(255, 255, 255, 0.08);
+    }
+
+    body[data-season="dark"] .slider {
+      background-color: rgba(255, 255, 255, 0.18);
+      border-color: rgba(255, 255, 255, 0.12);
+    }
+
+    body[data-season="dark"] .proxy-select,
+    body[data-season="dark"] .form-group input,
+    body[data-season="dark"] .form-group select,
+    body[data-season="dark"] .password-field input,
+    body[data-season="dark"] .server-tab,
+    body[data-season="dark"] .btn-settings,
+    body[data-season="dark"] .btn-back,
+    body[data-season="dark"] .btn-toggle-password {
+      background: rgba(48, 48, 52, 0.95);
+      color: #e8eaed;
+      border-color: transparent;
+    }
+
+    body[data-season="dark"] .server-tab.active,
+    body[data-season="dark"] .btn-settings:hover,
+    body[data-season="dark"] .btn-back:hover,
+    body[data-season="dark"] .btn-toggle-password:hover {
+      background: #4A90E2;
+      color: white;
+    }
+
+    body[data-season="dark"] .logo {
+      background-color: #1c1c1e;
+    }
+
+    body[data-season="dark"] .season-switcher {
+      background: rgba(28, 28, 30, 0.82);
+      border-color: rgba(255, 255, 255, 0.1);
+    }
+
+    body[data-season="dark"] .season-switcher button:hover,
+    body[data-season="dark"] .season-switcher button.active {
+      background: rgba(255, 255, 255, 0.12);
+    }
+
+    body[data-season="dark"] .season-switcher button[data-season="dark"] {
+      color: #e8eaed;
+    }
+
+    body[data-season="dark"] .settings-hint {
+      color: #9aa0a6;
+    }
 
     .season-switcher .material-icons-round {
       font-size: 20px;
@@ -605,7 +700,8 @@
       font-weight: 500;
     }
 
-    .form-group input {
+    .form-group input,
+    .form-group select {
       width: 100%;
       padding: 8px 10px;
       border: none;
@@ -824,6 +920,9 @@
     <button type="button" data-season="classic" title="Базовый" aria-label="Базовый">
       <span class="material-icons-round">palette</span>
     </button>
+    <button type="button" data-season="dark" title="Тёмная" aria-label="Тёмная">
+      <span class="material-icons-round">dark_mode</span>
+    </button>
     <button type="button" data-season="spring" title="Весна" aria-label="Весна">
       <span class="material-icons-round">eco</span>
     </button>
@@ -839,7 +938,7 @@
   </div>
 
   <div class="footer">
-    © Прокси bomjika • Версия 2.1.0
+    © Прокси bomjika • Версия 2.2.0
   </div>
   </div>
 
@@ -859,6 +958,13 @@
       <div class="form-group">
         <label for="serverLabel">Название</label>
         <input type="text" id="serverLabel" placeholder="Сервер 1" maxlength="32">
+      </div>
+      <div class="form-group">
+        <label for="serverScheme">Тип прокси</label>
+        <select id="serverScheme">
+          <option value="http">HTTP</option>
+          <option value="socks5">SOCKS5</option>
+        </select>
       </div>
       <div class="form-group">
         <label for="serverHost">IP / хост</label>
@@ -907,7 +1013,7 @@
           <span>Сохранить</span>
         </button>
       </div>
-      <p class="settings-hint">Можно настроить до 10 серверов. Минимум — 1.</p>
+      <p class="settings-hint">Можно настроить до 10 серверов. Минимум — 1. Для локального Clash, V2Ray или sing-box выберите SOCKS5 и 127.0.0.1.</p>
       <div id="settingsStatus" class="settings-status"></div>
     </div>
   </div>

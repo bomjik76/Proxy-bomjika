@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Прокси bomjika",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Приложение для управления и использования прокси серверов браузере",
   "permissions": [
     "proxy",
@@ -31,35 +31,5 @@
   },
   "icons": {
     "128": "images/128.png"
-  },
-  "commands": {
-    "activate-proxy": {
-      "suggested_key": {
-        "default": "Ctrl+Shift+Up",
-        "mac": "MacCtrl+Shift+Up"
-      },
-      "description": "Активировать прокси"
-    },
-    "deactivate-proxy": {
-      "suggested_key": {
-        "default": "Ctrl+Shift+Down",
-        "mac": "MacCtrl+Shift+Down"
-      },
-      "description": "Деактивировать прокси"
-    },
-    "enable-selective-mode": {
-      "suggested_key": {
-        "default": "Ctrl+Shift+Right",
-        "mac": "MacCtrl+Shift+Right"
-      },
-      "description": "Включить режим выборочного доступа"
-    },
-    "disable-selective-mode": {
-      "suggested_key": {
-        "default": "Ctrl+Shift+Left",
-        "mac": "MacCtrl+Shift+Left"
-      },
-      "description": "Выключить режим выборочного доступа"
-    }
   }
 } 
